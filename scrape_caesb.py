@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import urllib3
+import yaml
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -23,6 +24,16 @@ def main():
 
     if not token or not chat_id:
         print("Telegram credentials not found. Exiting.")
+        return
+
+    # Load config
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        cities_to_check = [c.lower() for c in config.get("cities", [])]
+    except FileNotFoundError:
+        print("Config file not found.")
         return
 
     # URL for Caesb Water Check
@@ -124,9 +135,10 @@ def main():
             motivo = cols[5].get_text(separator=" ", strip=True)
 
             ra_lower = ra.lower()
-            # Check for variations of Vicente Pires
-            if "vicente pires" in ra_lower or "vp" in ra_lower.split():
-                found_vicente_pires = True
+            # Check if any configured city matches the RA
+            match_found = any(city in ra_lower for city in cities_to_check)
+
+            if match_found:
                 msg = (
                     f"🚨 <b>Falta de Água Identificada</b> 🚨\n\n"
                     f"<b>RA:</b> {ra}\n"
@@ -138,9 +150,9 @@ def main():
                 )
                 messages.append(msg)
 
-        if found_vicente_pires:
+        if messages:
             print(
-                f"Found Vicente Pires entries. Sending {len(messages)} Telegram message(s)..."
+                f"Found entries for {', '.join(cities_to_check)}. Sending {len(messages)} Telegram message(s)..."
             )
             for msg in messages:
                 try:
@@ -149,7 +161,7 @@ def main():
                 except Exception as e:
                     print(f"Failed to send message: {e}")
         else:
-            print("Vicente Pires not found in the current water outage list.")
+            print(f"No entries found for: {', '.join(cities_to_check)}")
 
     except Exception as e:
         print(f"An error occurred during scraping: {e}")
